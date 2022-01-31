@@ -4,6 +4,7 @@ var jsmediatags = require("jsmediatags");
 var artistData = [];
 var queue = [];
 var path = "/media/nicco/Nicco's USB/Music/";
+var player;
 
 function playingView(){
     document.getElementById("libraryCont").style.left = "-100vw";
@@ -21,8 +22,8 @@ function playSong(artistIndex, albumIndex, songIndex){ //Add the current song to
         var song = artistData[artistIndex].albums[albumIndex].songs[i];
         var album = artistData[artistIndex].albums[albumIndex];
         var artist = artistData[artistIndex];
-        var audio = new Audio(path + artist.name + "/" + album.name + "/" + song.file);
-        queue.push({title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file, audio: audio});
+        //console.log(path + artist.name + "/" + album.name + "/" + song.file);
+        queue.push({title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
     }
     playingView();
     startPlaying();
@@ -37,14 +38,16 @@ function startPlaying() { //Start playing the first song in the queue
         document.getElementById("songTitle").innerText = queue[0].title;
     }
     document.getElementById("artistAlbumInfo").innerText = queue[0].album + " | " + queue[0].artist;
-    queue[0].audio.play();
-    queue[0].audio.addEventListener("ended", nextSong);
+    player = new Audio(path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file);
+    player.play();
+    player.addEventListener("ended", nextSong);
+    document.getElementById("pauseButton").onclick = pauseMusic;
 }
 
 function clearQueue(){
     if(queue.length > 0){
-        queue[0].audio.pause();
-        queue[0].audio.removeEventListener("ended", nextSong);
+        player.pause();
+        player.removeEventListener("ended", nextSong);
         queue = []; //Clear the queue
     }
 }
@@ -58,7 +61,7 @@ function nextSong() {
 
 function pauseMusic() {
     if(queue.length > 0){
-        queue[0].audio.pause();
+        player.pause();
         document.getElementById("playerImage").style.animation="";
         document.getElementById("pauseButton").innerText = "Play";
         document.getElementById("pauseButton").onclick = resumeMusic;
@@ -67,7 +70,7 @@ function pauseMusic() {
 
 function resumeMusic() {
     if(queue.length > 0){
-        queue[0].audio.play();
+        player.play();
         document.getElementById("playerImage").style.animation="spin 2s linear infinite";
         document.getElementById("pauseButton").innerText = "Pause";
         document.getElementById("pauseButton").onclick = pauseMusic;
@@ -76,13 +79,13 @@ function resumeMusic() {
 
 function restartSong(){
     if(queue.length > 0){
-        queue[0].audio.currentTime = 0;
+        player.currentTime = 0;
     }
 }
 
 function skipSong() {
     if(queue.length > 0){
-        queue[0].audio.currentTime = queue[0].audio.duration;
+        player.currentTime = player.duration;
         document.getElementById("pauseButton").innerText = "Pause";
         document.getElementById("pauseButton").onclick = "pauseMusic()";
     }
@@ -155,7 +158,7 @@ async function scanMusic(){ //Scan the music folder for subfolders (representing
 }
 
 function generateArtists() { //Generate the Artists list based on artistData
-    html = "<div style='text-align: center'><button>Shuffle All</button></div>";
+    html = "<div style='text-align: center'><button onclick='shuffleAll()'>Shuffle All</button></div>";
     for(var i = 0; i < artistData.length; i++){
         html += "<li onclick='viewAlbums(" + i + ")'>" + artistData[i].name + "</li>";
     }
@@ -167,7 +170,7 @@ function viewAlbums(index) {
     document.getElementById("albumsCont").style.display = "block";
     document.getElementById("songsCont").style.display = "none"
     document.getElementById("albumHeaderTitle").innerText = artistData[index].name;
-    html = "";
+    html = "<div style='text-align: center'><button onclick='shuffleArtist(" + index + ")'>Shuffle " + artistData[index].name + "</button></div>";
     for(var i = 0; i < artistData[index].albums.length; i++){
         html += "<li onclick='viewSongs(" + index + ", " + i + ")'>" + artistData[index].albums[i].name + "</li>";
     }
@@ -177,7 +180,7 @@ function viewAlbums(index) {
 function viewSongs(artistIndex, albumIndex){
     document.getElementById("albumsCont").style.display = "none";
     document.getElementById("songsCont").style.display = "block";
-    html = "<div class='albumInfo'><leftContainer><button onclick='viewAlbums(" + artistIndex + ")'>Back</button></leftContainer><img class='albumImage' src='" + artistData[artistIndex].albums[albumIndex].artwork + "'></img><div class='albumData'><h1>" + artistData[artistIndex].albums[albumIndex].name + "</h1><h3>" + artistData[artistIndex].name + "</h3></div><rightContainer><button>Shuffle All</button><button onclick='playingView()'>Now Playing</button></div>"
+    html = "<div class='albumInfo'><leftContainer><button onclick='viewAlbums(" + artistIndex + ")'>Back</button></leftContainer><img class='albumImage' src='" + artistData[artistIndex].albums[albumIndex].artwork + "'></img><div class='albumData'><h1>" + artistData[artistIndex].albums[albumIndex].name + "</h1><h3>" + artistData[artistIndex].name + "</h3></div><rightContainer><button onclick='shuffleAlbum(" + artistIndex + ", " + albumIndex + ")'>Shuffle Album</button><button onclick='playingView()'>Now Playing</button></div>"
     for(var i = 0; i < artistData[artistIndex].albums[albumIndex].songs.length; i++){
         html += "<li onclick='playSong(" + artistIndex + ", " + albumIndex + ", " + i + ")'>" + artistData[artistIndex].albums[albumIndex].songs[i].title + "</li>";
     }
@@ -185,6 +188,12 @@ function viewSongs(artistIndex, albumIndex){
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    if(fs.existsSync('config.js')) {
+        eval(fs.readFileSync('config.js', 'utf8'));
+    } else {
+        path = require('os').homedir() + "/Music/";
+        fs.writeFileSync('config.js', 'path = "' + path + '"; //The location where Tamarack scans for music. Music should be arranged in to subfolders of the following structure: [Artist Name]/[Albun Name]/musicfile.mp3');
+    }
     if (fs.existsSync('music.json')) {
         console.log("Loading index from disk");
         const data = fs.readFileSync('music.json', 'utf8');
@@ -206,6 +215,8 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function rescanMusic() {
+    fs.unlinkSync('music.json');
+    artistData = [];
     console.log("Indexing music");
     document.getElementById("artistsCont").style.display = "none";
     document.getElementById("albumsCont").style.display = "none";
@@ -217,4 +228,50 @@ function rescanMusic() {
         fs.writeFileSync('music.json', JSON.stringify(artistData));
         generateArtists();
     });
+}
+
+
+function shuffleAll() {
+    var songs = [];
+    clearQueue();
+    for(const artist of artistData){
+        for(const album of artist.albums){
+            for(const song of album.songs){
+                songs.push({title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
+            }
+        }
+    }
+    var randLength = 200;
+    if(songs.length < 200){
+        randLength = songs.length;
+    }
+    for(var i = 0; i < randLength; i++){
+        var index = Math.floor(Math.random() * songs.length);
+        queue.push(songs[index]);
+    }
+    playingView();
+    startPlaying();
+}
+
+function shuffleArtist(index){
+    clearQueue();
+    const artist = artistData[index];
+    for(const album of artist.albums){
+        for(const song of album.songs){
+            queue.splice(Math.floor(Math.random() * queue.length), 0, {title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
+        }
+    }
+    playingView();
+    startPlaying();
+}
+
+function shuffleAlbum(index1, index2){
+    clearQueue();
+    const artist = artistData[index1];
+    const album = artist.albums[index2];
+    for(const song of album.songs){
+        queue.splice(Math.floor(Math.random() * queue.length), 0, {title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
+    }
+    playingView();
+    startPlaying();
 }

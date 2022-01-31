@@ -12,7 +12,8 @@ function createWindow () {
     }
   });
 
-  win.loadFile('index.html')
+  win.loadFile('index.html');
+  //win.removeMenu();
 }
 
 app.whenReady().then(() => {

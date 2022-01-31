@@ -75,5 +75,6 @@ typings/
 # FuseBox cache
 .fusebox/
 
-# Music Library
+# Music Library and config file
 music.json
+config.js
