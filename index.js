@@ -6,31 +6,45 @@ var queue = [];
 var path = "/media/nicco/Nicco's USB/Music/";
 var player;
 
+var scrolling = false;
+var allowClicks = true;
+var mouseX;
+var mouseY;
+var distanceY;
+var distanceX;
+var currentView = "library";
+
 function playingView(){
     document.getElementById("libraryCont").style.left = "-100vw";
     document.getElementById("playingCont").style.left = "0px";
+    currentView = "player";
 }
 
 function libraryView(){
     document.getElementById("libraryCont").style.left = "0px";
     document.getElementById("playingCont").style.left = "100vw";
+    currentView = "library";
 }
 
 function playSong(artistIndex, albumIndex, songIndex){ //Add the current song to the queue, and add all the ones that come after it
-    clearQueue();
-    for(var i = songIndex; i < artistData[artistIndex].albums[albumIndex].songs.length; i++){
-        var song = artistData[artistIndex].albums[albumIndex].songs[i];
-        var album = artistData[artistIndex].albums[albumIndex];
-        var artist = artistData[artistIndex];
-        //console.log(path + artist.name + "/" + album.name + "/" + song.file);
-        queue.push({title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
+    if(distanceX <= 10 && distanceY <= 10){
+        clearQueue();
+        for(var i = songIndex; i < artistData[artistIndex].albums[albumIndex].songs.length; i++){
+            var song = artistData[artistIndex].albums[albumIndex].songs[i];
+            var album = artistData[artistIndex].albums[albumIndex];
+            var artist = artistData[artistIndex];
+            //console.log(path + artist.name + "/" + album.name + "/" + song.file);
+            queue.push({title: song.title, artist: artist.name, album: album.name, artwork: album.artwork, file: song.file});
+        }
+        playingView();
+        startPlaying();
     }
-    playingView();
-    startPlaying();
 }
 
 function startPlaying() { //Start playing the first song in the queue
-    document.getElementById("playerImage").src = queue[0].artwork;
+    getAlbumArtwork(path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file).then(function(result) {
+        document.getElementById("playerImage").src = result;
+    });
     document.getElementById("playerImage").style.animation="spin 2s linear infinite";
     if(queue[0].title.length > 35){
         document.getElementById("songTitle").innerText = queue[0].title.substring(0, 35) + "...";
@@ -41,6 +55,7 @@ function startPlaying() { //Start playing the first song in the queue
     player = new Audio(path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file);
     player.play();
     player.addEventListener("ended", nextSong);
+    player.addEventListener("pause", pauseMusic);
     document.getElementById("pauseButton").onclick = pauseMusic;
 }
 
@@ -124,30 +139,7 @@ async function scanMusic(){ //Scan the music folder for subfolders (representing
                                         }
                                     }
                                     if(albumSongs.length > 0){
-                                        
-                                        try{
-                                            const tagInfo = await new Promise((resolve, reject) => { 
-                                                new jsmediatags.Reader(path + artist + "/" + album + "/" + albumSongs[0].file).setTagsToRead(["picture"]).read({
-                                                    onSuccess: function(tag) {
-                                                        resolve(tag);
-                                                    },
-                                                    onError: function(error) {
-                                                        reject(error);
-                                                    }
-                                                });
-                                            });
-                                            var picture = tagInfo.tags.picture; // create reference to track art
-                                            var base64String = "";
-                                            for (var i = 0; i < picture.data.length; i++) {
-                                                base64String += String.fromCharCode(picture.data[i]);
-                                            }
-                                            var imageUri = "data:" + picture.format + ";base64," + window.btoa(base64String);
-                                            artistAlbums.push({name: album, songs: albumSongs, artwork: imageUri});
-                                        } catch(error) {
-                                            console.log("Media Tag Error: " + error);
-                                            artistAlbums.push({name: album, songs: albumSongs, artwork: "placeholder.jpg"});
-                                        }
-                                                
+                                        artistAlbums.push({name: album, songs: albumSongs});
                                     }
                                 }
                             }
@@ -155,6 +147,31 @@ async function scanMusic(){ //Scan the music folder for subfolders (representing
                         }
                 }
         }
+}
+
+async function getAlbumArtwork(filepath) {//WARNING: Extremely slow function. Use sparingly.
+    try{
+        const tagInfo = await new Promise((resolve, reject) => { 
+            new jsmediatags.Reader(filepath).setTagsToRead(["picture"]).read({
+                onSuccess: function(tag) {
+                    resolve(tag);
+                },
+                onError: function(error) {
+                    reject(error);
+                }
+            });
+        });
+        var picture = tagInfo.tags.picture; // create reference to track art
+        var base64String = "";
+        for (var i = 0; i < picture.data.length; i++) {
+            base64String += String.fromCharCode(picture.data[i]);
+        }
+        var imageUri = "data:" + picture.format + ";base64," + window.btoa(base64String);
+        return imageUri;
+    } catch(error) {
+        console.log("Media Tag Error: " + error);
+        return "placeholder.jpg";
+    }
 }
 
 function generateArtists() { //Generate the Artists list based on artistData
@@ -166,25 +183,32 @@ function generateArtists() { //Generate the Artists list based on artistData
 }
 
 function viewAlbums(index) {
-    document.getElementById("artistsCont").style.display = "none";
-    document.getElementById("albumsCont").style.display = "block";
-    document.getElementById("songsCont").style.display = "none"
-    document.getElementById("albumHeaderTitle").innerText = artistData[index].name;
-    html = "<div style='text-align: center'><button onclick='shuffleArtist(" + index + ")'>Shuffle " + artistData[index].name + "</button></div>";
-    for(var i = 0; i < artistData[index].albums.length; i++){
-        html += "<li onclick='viewSongs(" + index + ", " + i + ")'>" + artistData[index].albums[i].name + "</li>";
+    if(distanceX <= 10 && distanceY <= 10){
+        document.getElementById("artistsCont").style.display = "none";
+        document.getElementById("albumsCont").style.display = "flex";
+        document.getElementById("songsCont").style.display = "none"
+        document.getElementById("albumHeaderTitle").innerText = artistData[index].name;
+        html = "<div style='text-align: center'><button onclick='shuffleArtist(" + index + ")'>Shuffle " + artistData[index].name + "</button></div>";
+        for(var i = 0; i < artistData[index].albums.length; i++){
+            html += "<li onclick='viewSongs(" + index + ", " + i + ")'>" + artistData[index].albums[i].name + "</li>";
+        }
+        document.getElementById("albumList").innerHTML = html;
     }
-    document.getElementById("albumList").innerHTML = html;
 }
 
 function viewSongs(artistIndex, albumIndex){
-    document.getElementById("albumsCont").style.display = "none";
-    document.getElementById("songsCont").style.display = "block";
-    html = "<div class='albumInfo'><leftContainer><button onclick='viewAlbums(" + artistIndex + ")'>Back</button></leftContainer><img class='albumImage' src='" + artistData[artistIndex].albums[albumIndex].artwork + "'></img><div class='albumData'><h1>" + artistData[artistIndex].albums[albumIndex].name + "</h1><h3>" + artistData[artistIndex].name + "</h3></div><rightContainer><button onclick='shuffleAlbum(" + artistIndex + ", " + albumIndex + ")'>Shuffle Album</button><button onclick='playingView()'>Now Playing</button></div>"
-    for(var i = 0; i < artistData[artistIndex].albums[albumIndex].songs.length; i++){
-        html += "<li onclick='playSong(" + artistIndex + ", " + albumIndex + ", " + i + ")'>" + artistData[artistIndex].albums[albumIndex].songs[i].title + "</li>";
+    if(distanceX <= 10 && distanceY <= 10){
+        document.getElementById("albumsCont").style.display = "none";
+        document.getElementById("songsCont").style.display = "flex";
+        html = "<div class='albumInfo'><leftContainer><button onclick='viewAlbums(" + artistIndex + ")'>Back</button></leftContainer><img id='albumImage' src='placeholder.jpg'></img><div class='albumData'><h1>" + artistData[artistIndex].albums[albumIndex].name + "</h1><h3>" + artistData[artistIndex].name + "</h3></div><rightContainer><button onclick='shuffleAlbum(" + artistIndex + ", " + albumIndex + ")'>Shuffle Album</button><button onclick='playingView()'>Now Playing</button></div>"
+        for(var i = 0; i < artistData[artistIndex].albums[albumIndex].songs.length; i++){
+            html += "<li onclick='playSong(" + artistIndex + ", " + albumIndex + ", " + i + ")'>" + artistData[artistIndex].albums[albumIndex].songs[i].title + "</li>";
+        }
+        document.getElementById("songsList").innerHTML = html;
+        getAlbumArtwork(path + artistData[artistIndex].name + "/" + artistData[artistIndex].albums[albumIndex].name + "/" + artistData[artistIndex].albums[albumIndex].songs[0].file).then(function(result) {
+            document.getElementById("albumImage").src = result;
+        });
     }
-    document.getElementById("songsList").innerHTML = html;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -207,7 +231,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById("scanningCont").style.display = "block";
         scanMusic().then(function() {
             document.getElementById("scanningCont").style.display = "none";
-            document.getElementById("artistsCont").style.display = "block";
+            document.getElementById("artistsCont").style.display = "flex";
             fs.writeFileSync('music.json', JSON.stringify(artistData));
             generateArtists();
         });
@@ -215,7 +239,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function rescanMusic() {
-    fs.unlinkSync('music.json');
     artistData = [];
     console.log("Indexing music");
     document.getElementById("artistsCont").style.display = "none";
@@ -223,9 +246,12 @@ function rescanMusic() {
     document.getElementById("songsCont").style.display = "none";
     document.getElementById("scanningCont").style.display = "block";
     scanMusic().then(function() {
-        document.getElementById("scanningCont").style.display = "none";
-        document.getElementById("artistsCont").style.display = "block";
+        document.getElementById("indexStatus").innerText = "Erasing Old Database...";
+        fs.unlinkSync('music.json');
+        document.getElementById("indexStatus").innerText = "Writing Database...";
         fs.writeFileSync('music.json', JSON.stringify(artistData));
+        document.getElementById("scanningCont").style.display = "none";
+        document.getElementById("artistsCont").style.display = "flex";
         generateArtists();
     });
 }
@@ -274,4 +300,44 @@ function shuffleAlbum(index1, index2){
     }
     playingView();
     startPlaying();
+}
+
+
+
+function startScroll(e){
+    scrolling = true;
+    allowClick = false;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    distanceY = 0;
+    distanceX = 0;
+}
+
+function drag(e, element){
+    if(scrolling){
+        var differenceY = e.clientY - mouseY;
+        var differenceX = e.clientX - mouseX;
+        element.scrollTop -= differenceY;
+        mouseY = e.clientY;
+        mouseX = e.clientX;
+        distanceY += Math.abs(differenceY);
+        distanceX += Math.abs(differenceX);
+    }
+}
+
+function endScroll(){
+    scrolling = false;
+    if(distanceX <= 10 && distanceY <= 10){
+        //It's a click. Set allowClicks to true to enable any onclick events to go through
+        allowClicks = true;
+    } else if(distanceX > 80) {
+        //It's a swipe, so switch the view
+        if(currentView == "library"){
+            playingView();
+        } else if(currentView == "player"){
+            libraryView();
+        }
+    } else {
+        //It's a scroll. Do nothing, as drag() has it all taken care of
+    }
 }

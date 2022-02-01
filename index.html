@@ -1,28 +1,28 @@
 <html>
     <body>
         <div id="libraryCont" style="right: 0px;" class="topLevelCont">
-            <div id="artistsCont" class="subCont" style="display: block">
+            <div id="artistsCont" class="subCont" style="display: flex">
                 <div class="header">
                     <leftContainer><button onclick="rescanMusic()">Scan Music</button></leftContainer>
                     <headerTitle>Library</headerTitle>
                     <rightContainer><button onclick="playingView()">Now Playing</button></rightContainer>
                 </div>
-                <div class="list" id="artistList">
+                <div class="list" id="artistList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
                     
                 </div>
             </div>
             <div id="albumsCont" class="subCont">
                 <div class="header">
-                    <leftContainer><button onclick="document.getElementById('albumsCont').style.display = 'none'; document.getElementById('artistsCont').style.display = 'block';">Back</button></leftContainer>
+                    <leftContainer><button onclick="document.getElementById('albumsCont').style.display = 'none'; document.getElementById('artistsCont').style.display = 'flex';">Back</button></leftContainer>
                     <headerTitle id="albumHeaderTitle">Albums</headerTitle>
                     <rightContainer><button onclick="playingView()">Now Playing</button></rightContainer>
                 </div>
-                <div class="list" id="albumList">
+                <div class="list" id="albumList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
                     
                 </div>
             </div>
             <div id="songsCont" class="subCont">
-                <div class="list" id="songsList">
+                <div class="list" id="songsList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
                     
                 </div>
             </div>
@@ -32,7 +32,7 @@
                 <h3 id="indexStatus"></h3>
             </div>
         </div>
-        <div id="playingCont" style="left: 100vw;" class="topLevelCont">
+        <div id="playingCont" style="left: 100vw; user-select: none;" class="topLevelCont" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
             <div class='songInfo'>
                 <div class='backContainer'>
                     <button onclick='libraryView()'>Back</button>
@@ -71,6 +71,7 @@
             
             .subCont {
                 display: none;
+                flex-direction: column;
                 max-width: 100vw;
                 max-height: 100vh;
                 overflow-x: hidden;
@@ -83,6 +84,7 @@
                 text-align: center;
                 display: flex;
                 justify-content: space-between;
+                z-index: 2;
             }
             
             .header headerTitle{
@@ -108,9 +110,10 @@
             
             .list {
                 width: 100vw;
-                height: 100vh;
+                height: 100%;
                 overflow-y: auto;
                 overflow-x: hidden;
+                user-select: none;
             }
             
             .list li {
@@ -126,9 +129,9 @@
                 background: #eee;
             }
             
-            .list li:active {
+            /*.list li:active {
                 background: #dfd;
-            }
+            }*/
             
             leftContainer, rightContainer {
                 width: 150px;
@@ -151,7 +154,7 @@
                 display: flex;
             }
             
-            .albumImage {
+            #albumImage {
                 max-width: 80px;
                 max-height: 80px;
                 margin: 5px;
