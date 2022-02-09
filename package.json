@@ -1,0 +1,18 @@
+{
+  "name": "tamarack",
+  "version": "1.0.0",
+  "description": "A music player for small screens",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "ScanuRag",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^16.0.7",
+    "electron-packager": "^15.4.0"
+  },
+  "dependencies": {
+    "jsmediatags": "^3.9.7"
+  }
+}
