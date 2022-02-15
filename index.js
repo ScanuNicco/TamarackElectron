@@ -109,39 +109,41 @@ function skipSong() {
 async function scanMusic(){ //Scan the music folder for subfolders (representing artists) and scan artist folders for subfolders (representing albums) 
         if (fs.existsSync(path)) {
                 var artists = fs.readdirSync(path);
-                for( const artist of artists ) { //For ear artist
-                        if(fs.lstatSync(path + artist).isDirectory()){
+                for( const artist of artists ) { //For each artist
+                        if(fs.lstatSync(path + artist).isDirectory()){ //Ignore files in the main directory
                             var artistAlbums = [];
                             document.getElementById("indexStatus").innerText = "Importing " + artist + "...";
                             const albums = fs.readdirSync(path + artist);
                                 for (const album of albums) {
-                                if(fs.lstatSync(path + artist + "/" + album).isDirectory()){
-                                    var albumSongs = [];
-                                    const songs = fs.readdirSync(path + artist + "/" + album);
-                                    for (const song of songs) {
-                                        var extension = song.match(/\.[0-9a-z]+$/i)[0];
-                                        if(extension == ".m4a" || extension == ".mp3" || extension == ".wav"){
-                                            try{
-                                                const tagInfo = await new Promise((resolve, reject) => {
-                                                        new jsmediatags.Reader(path + artist + "/" + album + "/" + song).setTagsToRead(["title"]).read({
-                                                            onSuccess: function(tag) {
-                                                                resolve(tag);
-                                                            }, onError: function(error){
-                                                                reject(error);
-                                                            }
-                                                            });
-                                                });
-                                                albumSongs.push({file: song, title: tagInfo.tags.title});
-                                            } catch(error) {
-                                                console.log("Media Tag Error: " + error);
-                                                albumSongs.push({file: song, title: song});
-                                            }
-                                        }
-                                    }
-                                    if(albumSongs.length > 0){
-                                        artistAlbums.push({name: album, songs: albumSongs});
-                                    }
-                                }
+	                                if(fs.lstatSync(path + artist + "/" + album).isDirectory()){ //Ignore files in the artist directory
+	                                    var albumSongs = [];
+	                                    const songs = fs.readdirSync(path + artist + "/" + album);
+	                                    for (const song of songs) {
+						if(fs.lstatSync(path + artist + "/" + album + "/" + song).isFile()){ //Ignore folders in the songs directory
+		                                        var extension = song.match(/\.[0-9a-z]+$/i)[0];
+		                                        if(extension == ".m4a" || extension == ".mp3" || extension == ".wav" || extension == ".aiff"){
+		                                            try{
+		                                                const tagInfo = await new Promise((resolve, reject) => {
+		                                                        new jsmediatags.Reader(path + artist + "/" + album + "/" + song).setTagsToRead(["title"]).read({
+		                                                            onSuccess: function(tag) {
+		                                                                resolve(tag);
+		                                                            }, onError: function(error){
+		                                                                reject(error);
+		                                                            }
+		                                                            });
+		                                                });
+		                                                albumSongs.push({file: song, title: tagInfo.tags.title});
+		                                            } catch(error) {
+		                                                console.log("Media Tag Error: " + error);
+		                                                albumSongs.push({file: song, title: song});
+		                                            }
+		                                        }
+						}
+	                                    }
+	                                    if(albumSongs.length > 0){
+	                                        artistAlbums.push({name: album, songs: albumSongs});
+	                                    }
+	                                }
                             }
                             artistData.push({name: artist, albums: artistAlbums});
                         }
