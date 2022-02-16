@@ -1,9 +1,14 @@
 <html>
     <body>
+        <div id="popup">
+            <h1 id="popupHeader"></h1>
+            <p id="popupText"></h1>
+            <div id="popupActions"></div>
+        </div>
         <div id="libraryCont" style="right: 0px;" class="topLevelCont">
             <div id="artistsCont" class="subCont" style="display: flex">
                 <div class="header">
-                    <leftContainer><button onclick="rescanMusic()">Scan Music</button></leftContainer>
+                    <leftContainer><button onclick="promptRescan()">Scan Music</button></leftContainer>
                     <headerTitle>Library</headerTitle>
                     <rightContainer><button onclick="playingView()">Now Playing</button></rightContainer>
                 </div>
@@ -47,9 +52,9 @@
                 </div>
             </div>
             <div class="playerActions">
-                <button onclick="restartSong()">Restart</button>
-                <button id="pauseButton">Pause</button>
-                <button onclick="skipSong()">Skip</button>
+                <button onclick="restartSong()"><img class="buttonIcon" src="restart.svg"></button>
+                <button id="pauseButton"><img class="buttonIcon" src="pause.svg"></button>
+                <button onclick="skipSong()"><img class="buttonIcon" src="skip.svg"></button>
             </div>
         </div>
         <script src="index.js"></script>
@@ -57,6 +62,7 @@
             body {
                 font-family: sans-serif;
                 overflow-x: hidden;
+                cursor: none;
             }
             
             .topLevelCont {
@@ -182,6 +188,7 @@
                 box-shadow: 0px 0px 6px rgba(0, 0, 0, .5);
                 border-radius: 60px;
                 animation-duration: 2s;
+                user-select: none;
             }
             
             @keyframes spin {
@@ -199,7 +206,7 @@
                 margin: 5px;
             }
             
-            .playerActions {
+            .playerActions, #popupActions {
                 display: flex;
                 justify-content: space-evenly;
                 align-items: center;
@@ -244,6 +251,24 @@
             
             #scanningCont {
                 text-align: center;
+            }
+            
+            .buttonIcon {
+                height: 40px;
+            }
+            
+            #popup {
+                    background: #eee;
+                    width: 90vw;
+                    height: 90vh;
+                    position: fixed;
+                    left: 5vw;
+                    top: 5vh;
+                    z-index: 10;
+                    border-radius: 5px;
+                    box-shadow: 0px 0px 5px rgba(0, 0, 0, .5);
+                    text-align: center;
+                    display: none;
             }
     </body>
 </html>

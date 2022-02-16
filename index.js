@@ -1,10 +1,13 @@
 var fs = require('fs');
 var jsmediatags = require("jsmediatags");
+const app = require('electron');
 
 var artistData = [];
 var queue = [];
-var path = "/media/nicco/Nicco's USB/Music/";
-var player;
+var path;
+var showMouse;
+var player = new Audio();
+player.addEventListener("pause", pauseMusic);
 
 var scrolling = false;
 var allowClicks = true;
@@ -46,16 +49,17 @@ function startPlaying() { //Start playing the first song in the queue
         document.getElementById("playerImage").src = result;
     });
     document.getElementById("playerImage").style.animation="spin 2s linear infinite";
+    document.getElementById("pauseButton").innerHTML = "<img class='buttonIcon' src='pause.svg'>";
     if(queue[0].title.length > 35){
         document.getElementById("songTitle").innerText = queue[0].title.substring(0, 35) + "...";
     } else {
         document.getElementById("songTitle").innerText = queue[0].title;
     }
     document.getElementById("artistAlbumInfo").innerText = queue[0].album + " | " + queue[0].artist;
-    player = new Audio(path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file);
+    player.src = path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file;
+    player.load();
     player.play();
     player.addEventListener("ended", nextSong);
-    player.addEventListener("pause", pauseMusic);
     document.getElementById("pauseButton").onclick = pauseMusic;
 }
 
@@ -78,7 +82,7 @@ function pauseMusic() {
     if(queue.length > 0){
         player.pause();
         document.getElementById("playerImage").style.animation="";
-        document.getElementById("pauseButton").innerText = "Play";
+        document.getElementById("pauseButton").innerHTML = "<img class='buttonIcon' src='play.svg'>";
         document.getElementById("pauseButton").onclick = resumeMusic;
     }
 }
@@ -87,7 +91,7 @@ function resumeMusic() {
     if(queue.length > 0){
         player.play();
         document.getElementById("playerImage").style.animation="spin 2s linear infinite";
-        document.getElementById("pauseButton").innerText = "Pause";
+        document.getElementById("pauseButton").innerHTML = "<img class='buttonIcon' src='pause.svg'>";
         document.getElementById("pauseButton").onclick = pauseMusic;
     }
 }
@@ -100,9 +104,8 @@ function restartSong(){
 
 function skipSong() {
     if(queue.length > 0){
-        player.currentTime = player.duration;
-        document.getElementById("pauseButton").innerText = "Pause";
-        document.getElementById("pauseButton").onclick = "pauseMusic()";
+        //player.pause();
+        nextSong();
     }
 }
 
@@ -216,7 +219,11 @@ window.addEventListener('DOMContentLoaded', () => {
         eval(fs.readFileSync('config.js', 'utf8'));
     } else {
         path = require('os').homedir() + "/Music/";
-        fs.writeFileSync('config.js', 'path = "' + path + '"; //The location where Tamarack scans for music. Music should be arranged in to subfolders of the following structure: [Artist Name]/[Albun Name]/musicfile.mp3');
+        showMouse = false;
+        fs.writeFileSync('config.js', 'path = "' + path + '"; //The location where Tamarack scans for music. Music should be arranged in to subfolders of the following structure: [Artist Name]/[Albun Name]/musicfile.mp3;\nshowMouse = true; //If set to false, the mouse will be hidden. Useful on embedded devices with touchscreens.');
+    }
+    if(showMouse){
+        document.body.style.cursor = 'pointer';
     }
     if (fs.existsSync('music.json')) {
         console.log("Loading index from disk");
@@ -256,6 +263,9 @@ function rescanMusic() {
     });
 }
 
+function promptRescan() {
+    popup("Are you sure?", "Rescanning music can take a long time on large music libraries", "<button onclick='closePopup()'>Cancel</button><button onclick='closePopup(); rescanMusic()'>Continue</button>");
+}
 
 function shuffleAll() {
     var songs = [];
@@ -340,4 +350,15 @@ function endScroll(){
     } else {
         //It's a scroll. Do nothing, as drag() has it all taken care of
     }
+}
+
+function popup(header, text, actions){
+    document.getElementById("popup").style.display = "block";
+    document.getElementById("popupHeader").innerText = header;
+    document.getElementById("popupText").innerText = text;
+    document.getElementById("popupActions").innerHTML = actions;
+}
+
+function closePopup() {
+    document.getElementById("popup").style.display = "none";
 }
