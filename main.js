@@ -13,9 +13,9 @@ function createWindow () {
   });
 
   win.loadFile('index.html');
-  if(!app.commandLine.hasSwitch("-debug")){
+  /*if(!app.commandLine.hasSwitch("-debug")){
     win.removeMenu();
-  }
+  }*/
 }
 
 app.whenReady().then(() => {

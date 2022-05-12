@@ -1,18 +1,18 @@
 <html>
-    <body>
+    <body onmouseleave="endScroll()">
         <div id="popup">
             <h1 id="popupHeader"></h1>
             <p id="popupText"></h1>
             <div id="popupActions"></div>
         </div>
-        <div id="libraryCont" style="right: 0px;" class="topLevelCont">
+        <div id="libraryCont" style="right: 0px;" class="topLevelCont"  onmouseup="endScroll()">
             <div id="artistsCont" class="subCont" style="display: flex">
                 <div class="header">
                     <leftContainer><button onclick="promptRescan()">Scan Music</button></leftContainer>
                     <headerTitle>Library</headerTitle>
                     <rightContainer><button onclick="playingView()">Now Playing</button></rightContainer>
                 </div>
-                <div class="list" id="artistList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
+                <div class="list" id="artistList" onmousedown="startScroll(event)" onmousemove="drag(event, this)">
                     
                 </div>
             </div>
@@ -22,12 +22,12 @@
                     <headerTitle id="albumHeaderTitle">Albums</headerTitle>
                     <rightContainer><button onclick="playingView()">Now Playing</button></rightContainer>
                 </div>
-                <div class="list" id="albumList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
+                <div class="list" id="albumList" onmousedown="startScroll(event)" onmousemove="drag(event, this)">
                     
                 </div>
             </div>
             <div id="songsCont" class="subCont">
-                <div class="list" id="songsList" onmousedown="startScroll(event)" onmousemove="drag(event, this)" onmouseup="endScroll()">
+                <div class="list" id="songsList" onmousedown="startScroll(event)" onmousemove="drag(event, this)">
                     
                 </div>
             </div>
@@ -108,6 +108,7 @@
                 box-shadow: 0px 0px 6px rgba(0, 0, 0, .5);
                 margin: 5px;
                 transition-duration: .2s;
+                cursor: inherit;
             }
             
             button:active {

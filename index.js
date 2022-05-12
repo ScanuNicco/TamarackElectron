@@ -1,9 +1,14 @@
 var fs = require('fs');
+var os = require('os');
 var jsmediatags = require("jsmediatags");
+const util = require('util');
+const execFile = util.promisify(require('child_process').execFile);
 const app = require('electron');
 
 var artistData = [];
 var queue = [];
+var rusty;
+var rustyName = "rustyScanner-" + os.platform() + "-" + os.arch(); //Tamarack will look for a RustyScanner binary corresponding to the correct platform and architecture
 var path;
 var showMouse;
 var player = new Audio();
@@ -16,6 +21,7 @@ var mouseY;
 var distanceY;
 var distanceX;
 var currentView = "library";
+var SCROLL_MOMENTUM;
 
 function playingView(){
     document.getElementById("libraryCont").style.left = "-100vw";
@@ -110,7 +116,15 @@ function skipSong() {
 }
 
 async function scanMusic(){ //Scan the music folder for subfolders (representing artists) and scan artist folders for subfolders (representing albums) 
-        if (fs.existsSync(path)) {
+        if(rusty){
+            await scanWithRust();
+        } else {
+            await scanWithJavaScript();
+        }
+}
+
+async function scanWithJavaScript(){
+    if (fs.existsSync(path)) {
                 var artists = fs.readdirSync(path);
                 for( const artist of artists ) { //For each artist
                         if(fs.lstatSync(path + artist).isDirectory()){ //Ignore files in the main directory
@@ -152,6 +166,21 @@ async function scanMusic(){ //Scan the music folder for subfolders (representing
                         }
                 }
         }
+        //Now we've filled artistData with data, but we still need to save it to JSON so we can use it next time
+        fs.writeFileSync('music.json', JSON.stringify(artistData));
+}
+
+async function scanWithRust(){ //Use an external Rust program to generate the JSON for increased speed
+    document.getElementById("indexStatus").innerText = "RustyScanner is running.";
+    await execFile("./" + rustyName, [path]);
+    //RustyScanner will generate a json file, which we need to import into ArtistData
+    if (fs.existsSync('music.json')) {
+        document.getElementById("indexStatus").innerText = "Loading Index from Disk.";
+        const data = fs.readFileSync('music.json', 'utf8');
+        artistData = JSON.parse(data);
+    } else {
+        document.getElementById("indexStatus").innerText = "An Error Occured";
+    }
 }
 
 async function getAlbumArtwork(filepath) {//WARNING: Extremely slow function. Use sparingly.
@@ -217,12 +246,20 @@ function viewSongs(artistIndex, albumIndex){
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    if(fs.existsSync('config.js')) {
+    if(fs.existsSync(rustyName)) { //If a compatible RustyScanner executable is available, configure Tamarack to use it.
+        rusty = true;
+        console.log("RustyScanner detected");
+    } else {
+        rusty = false;
+        console.log("RustyScanner not detected, the JavaScript scanner will be used instead");
+    }
+    if(fs.existsSync('config.js')) { //If config.js is present, import it. Otherwise generate the default file.
         eval(fs.readFileSync('config.js', 'utf8'));
     } else {
-        path = require('os').homedir() + "/Music/";
-        showMouse = false;
-        fs.writeFileSync('config.js', 'path = "' + path + '"; //The location where Tamarack scans for music. Music should be arranged in to subfolders of the following structure: [Artist Name]/[Albun Name]/musicfile.mp3;\nshowMouse = true; //If set to false, the mouse will be hidden. Useful on embedded devices with touchscreens.');
+        path = os.homedir() + "/Music/";
+        showMouse = true;
+        SCROLL_MOMENTUM = .75;
+        fs.writeFileSync('config.js', 'path = "' + path + '"; //The location where Tamarack scans for music. Music should be arranged in to subfolders of the following structure: [Artist Name]/[Album Name]/musicfile.mp3;\nshowMouse = true; //If set to false, the mouse will be hidden. Useful on embedded devices with touchscreens.\nSCROLL_MOMENTUM = .75; //A number between 0 and 1. Effects how long the list keeps moving after drag stops\n //rusty = false; //Uncomment this line to force tamarack to use the JavaScript Scanner instead of the Rust one.');
     }
     if(showMouse){
         document.body.style.cursor = 'pointer';
@@ -241,7 +278,6 @@ window.addEventListener('DOMContentLoaded', () => {
         scanMusic().then(function() {
             document.getElementById("scanningCont").style.display = "none";
             document.getElementById("artistsCont").style.display = "flex";
-            fs.writeFileSync('music.json', JSON.stringify(artistData));
             generateArtists();
         });
     }
@@ -254,11 +290,9 @@ function rescanMusic() {
     document.getElementById("albumsCont").style.display = "none";
     document.getElementById("songsCont").style.display = "none";
     document.getElementById("scanningCont").style.display = "block";
+    document.getElementById("indexStatus").innerText = "Erasing Old Database...";
+    fs.unlinkSync('music.json');
     scanMusic().then(function() {
-        document.getElementById("indexStatus").innerText = "Erasing Old Database...";
-        fs.unlinkSync('music.json');
-        document.getElementById("indexStatus").innerText = "Writing Database...";
-        fs.writeFileSync('music.json', JSON.stringify(artistData));
         document.getElementById("scanningCont").style.display = "none";
         document.getElementById("artistsCont").style.display = "flex";
         generateArtists();
@@ -266,7 +300,7 @@ function rescanMusic() {
 }
 
 function promptRescan() {
-    popup("Are you sure?", "Rescanning music can take a long time on large music libraries", "<button onclick='closePopup()'>Cancel</button><button onclick='closePopup(); rescanMusic()'>Continue</button>");
+    popup("Are you sure?", "Rescanning music can take a long time on large music libraries. RustyScan Available: " + rusty, "<button onclick='closePopup()'>Cancel</button><button onclick='closePopup(); rescanMusic()'>Continue</button>");
 }
 
 function shuffleAll() {
@@ -317,6 +351,7 @@ function shuffleAlbum(index1, index2){
 
 
 function startScroll(e){
+    clearInterval(momentumTimer);
     scrolling = true;
     allowClick = false;
     mouseX = e.clientX;
@@ -325,10 +360,17 @@ function startScroll(e){
     distanceX = 0;
 }
 
+var oldTime = Date.now();
+var scrollVel = 0;
+var scrollElement;
 function drag(e, element){
     if(scrolling){
+        scrollElement = element;
         var differenceY = e.clientY - mouseY;
         var differenceX = e.clientX - mouseX;
+        var newTime = Date.now();
+        scrollVel = differenceY / (newTime - oldTime);
+        oldTime = newTime;
         element.scrollTop -= differenceY;
         mouseY = e.clientY;
         mouseX = e.clientX;
@@ -343,14 +385,24 @@ function endScroll(){
         //It's a click. Set allowClicks to true to enable any onclick events to go through
         allowClicks = true;
     } else if(distanceX > 80) {
-        //It's a swipe, so switch the view
+        //It's a horizontal swipe, so switch the view
         if(currentView == "library"){
             playingView();
         } else if(currentView == "player"){
             libraryView();
         }
     } else {
-        //It's a scroll. Do nothing, as drag() has it all taken care of
+        console.log("Velocity: " + scrollVel + "px/ms");
+        momentumTimer = setInterval(scrollMomentum, 50);
+    }
+}
+
+var momentumTimer;
+function scrollMomentum(){
+    scrollElement.scrollTop -= scrollVel * 50; //Multiply speed by 50 because we're only running this every 50 ms.
+    scrollVel *= SCROLL_MOMENTUM;
+    if(Math.abs(scrollVel) < .1){
+        clearInterval(momentumTimer);
     }
 }
 
