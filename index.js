@@ -2,8 +2,9 @@ var fs = require('fs');
 var os = require('os');
 var jsmediatags = require("jsmediatags");
 const util = require('util');
-const execFile = util.promisify(require('child_process').execFile);
+const { spawn } = require('node:child_process');
 const app = require('electron');
+const process = require('process');
 
 var artistData = [];
 var queue = [];
@@ -51,9 +52,7 @@ function playSong(artistIndex, albumIndex, songIndex){ //Add the current song to
 }
 
 function startPlaying() { //Start playing the first song in the queue
-    getAlbumArtwork(path + queue[0].artist + "/" + queue[0].album + "/" + queue[0].file).then(function(result) {
-        document.getElementById("playerImage").src = result;
-    });
+    document.getElementById("playerImage").src = process.cwd() + "/" + queue[0].artwork;
     document.getElementById("playerImage").style.animation="spin 2s linear infinite";
     document.getElementById("pauseButton").innerHTML = "<img class='buttonIcon' src='pause.svg'>";
     if(queue[0].title.length > 35){
@@ -115,97 +114,32 @@ function skipSong() {
     }
 }
 
-async function scanMusic(){ //Scan the music folder for subfolders (representing artists) and scan artist folders for subfolders (representing albums) 
-        if(rusty){
-            await scanWithRust();
-        } else {
-            await scanWithJavaScript();
-        }
-}
-
-async function scanWithJavaScript(){
-    if (fs.existsSync(path)) {
-                var artists = fs.readdirSync(path);
-                for( const artist of artists ) { //For each artist
-                        if(fs.lstatSync(path + artist).isDirectory()){ //Ignore files in the main directory
-                            var artistAlbums = [];
-                            document.getElementById("indexStatus").innerText = "Importing " + artist + "...";
-                            const albums = fs.readdirSync(path + artist);
-                                for (const album of albums) {
-	                                if(fs.lstatSync(path + artist + "/" + album).isDirectory()){ //Ignore files in the artist directory
-	                                    var albumSongs = [];
-	                                    const songs = fs.readdirSync(path + artist + "/" + album);
-	                                    for (const song of songs) {
-						if(fs.lstatSync(path + artist + "/" + album + "/" + song).isFile()){ //Ignore folders in the songs directory
-		                                        var extension = song.match(/\.[0-9a-z]+$/i)[0];
-		                                        if(extension == ".m4a" || extension == ".mp3" || extension == ".wav" || extension == ".aiff"){
-		                                            try{
-		                                                const tagInfo = await new Promise((resolve, reject) => {
-		                                                        new jsmediatags.Reader(path + artist + "/" + album + "/" + song).setTagsToRead(["title"]).read({
-		                                                            onSuccess: function(tag) {
-		                                                                resolve(tag);
-		                                                            }, onError: function(error){
-		                                                                reject(error);
-		                                                            }
-		                                                            });
-		                                                });
-		                                                albumSongs.push({file: song, title: tagInfo.tags.title});
-		                                            } catch(error) {
-		                                                console.log("Media Tag Error: " + error);
-		                                                albumSongs.push({file: song, title: song});
-		                                            }
-		                                        }
-						}
-	                                    }
-	                                    if(albumSongs.length > 0){
-	                                        artistAlbums.push({name: album, songs: albumSongs});
-	                                    }
-	                                }
-                            }
-                            artistData.push({name: artist, albums: artistAlbums});
-                        }
-                }
-        }
-        //Now we've filled artistData with data, but we still need to save it to JSON so we can use it next time
-        fs.writeFileSync('music.json', JSON.stringify(artistData));
-}
-
-async function scanWithRust(){ //Use an external Rust program to generate the JSON for increased speed
-    document.getElementById("indexStatus").innerText = "RustyScanner is running.";
-    await execFile("./" + rustyName, [path]);
-    //RustyScanner will generate a json file, which we need to import into ArtistData
-    if (fs.existsSync('music.json')) {
-        document.getElementById("indexStatus").innerText = "Loading Index from Disk.";
-        const data = fs.readFileSync('music.json', 'utf8');
-        artistData = JSON.parse(data);
-    } else {
-        document.getElementById("indexStatus").innerText = "An Error Occured";
-    }
-}
-
-async function getAlbumArtwork(filepath) {//WARNING: Extremely slow function. Use sparingly.
-    try{
-        const tagInfo = await new Promise((resolve, reject) => { 
-            new jsmediatags.Reader(filepath).setTagsToRead(["picture"]).read({
-                onSuccess: function(tag) {
-                    resolve(tag);
-                },
-                onError: function(error) {
-                    reject(error);
-                }
-            });
+function scanMusic(){ //Scan the music folder for subfolders (representing artists) and scan artist folders for subfolders (representing albums) 
+        document.getElementById("indexStatus").innerText = "RustyScanner is initializing.";
+        const rustyScanner = spawn("./" + rustyName, [path]);
+        rustyScanner.stdout.on('data', (data) => {
+            document.getElementById("indexStatus").innerText = `stdout: ${data}`;
         });
-        var picture = tagInfo.tags.picture; // create reference to track art
-        var base64String = "";
-        for (var i = 0; i < picture.data.length; i++) {
-            base64String += String.fromCharCode(picture.data[i]);
-        }
-        var imageUri = "data:" + picture.format + ";base64," + window.btoa(base64String);
-        return imageUri;
-    } catch(error) {
-        console.log("Media Tag Error: " + error);
-        return "placeholder.jpg";
-    }
+
+        rustyScanner.stderr.on('data', (data) => {
+            document.getElementById("indexStatus").innerText = `stderr: ${data}`;
+        });
+
+        rustyScanner.on('close', (code) => {
+            document.getElementById("indexStatus").innerText = `child process exited with code ${code}`;
+            //RustyScanner will generate a json file, which we need to import into ArtistData
+            if (fs.existsSync('music.json')) {
+                document.getElementById("indexStatus").innerText = "Loading Index from Disk.";
+                const data = fs.readFileSync('music.json', 'utf8');
+                artistData = JSON.parse(data);
+                document.getElementById("scanningCont").style.display = "none";
+                document.getElementById("artistsCont").style.display = "flex";
+                generateArtists();
+            } else {
+                document.getElementById("indexStatus").innerText = "Error: Music Index Missing!";
+                popup("An Error Occured", "The music index is missing! Try scanning again or running RustyScanner manually from the terminal.", "<button onclick='closePopup()'>Ok</button>");
+            }
+        });
 }
 
 function generateArtists() { //Generate the Artists list based on artistData
@@ -239,9 +173,7 @@ function viewSongs(artistIndex, albumIndex){
             html += "<li onclick='playSong(" + artistIndex + ", " + albumIndex + ", " + i + ")'>" + artistData[artistIndex].albums[albumIndex].songs[i].title + "</li>";
         }
         document.getElementById("songsList").innerHTML = html;
-        getAlbumArtwork(path + artistData[artistIndex].name + "/" + artistData[artistIndex].albums[albumIndex].name + "/" + artistData[artistIndex].albums[albumIndex].songs[0].file).then(function(result) {
-            document.getElementById("albumImage").src = result;
-        });
+        document.getElementById("albumImage").src = process.cwd() + "/" + artistData[artistIndex].albums[albumIndex].artwork;
     }
 }
 
@@ -251,7 +183,7 @@ window.addEventListener('DOMContentLoaded', () => {
         console.log("RustyScanner detected");
     } else {
         rusty = false;
-        console.log("RustyScanner not detected, the JavaScript scanner will be used instead");
+        popup("Notice", "Tamarack could not find a RustyScanner binary for your system/architecture. Scanning music is disabled.", "<button onclick='closePopup()'>Ok</button>");
     }
     if(fs.existsSync('config.js')) { //If config.js is present, import it. Otherwise generate the default file.
         eval(fs.readFileSync('config.js', 'utf8'));
@@ -275,11 +207,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById("albumsCont").style.display = "none";
         document.getElementById("songsCont").style.display = "none";
         document.getElementById("scanningCont").style.display = "block";
-        scanMusic().then(function() {
-            document.getElementById("scanningCont").style.display = "none";
-            document.getElementById("artistsCont").style.display = "flex";
-            generateArtists();
-        });
+        scanMusic();
     }
 });
 
@@ -292,15 +220,11 @@ function rescanMusic() {
     document.getElementById("scanningCont").style.display = "block";
     document.getElementById("indexStatus").innerText = "Erasing Old Database...";
     fs.unlinkSync('music.json');
-    scanMusic().then(function() {
-        document.getElementById("scanningCont").style.display = "none";
-        document.getElementById("artistsCont").style.display = "flex";
-        generateArtists();
-    });
+    scanMusic();
 }
 
 function promptRescan() {
-    popup("Are you sure?", "Rescanning music can take a long time on large music libraries. RustyScan Available: " + rusty, "<button onclick='closePopup()'>Cancel</button><button onclick='closePopup(); rescanMusic()'>Continue</button>");
+    popup("Are you sure?", "Rescanning music can take a some time if there is a large amount of new music.", "<button onclick='closePopup()'>Cancel</button><button onclick='closePopup(); rescanMusic()'>Continue</button>");
 }
 
 function shuffleAll() {

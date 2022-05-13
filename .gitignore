@@ -78,3 +78,4 @@ typings/
 # Music Library and config file
 music.json
 config.js
+album_artwork/
